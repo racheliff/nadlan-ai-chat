@@ -56,43 +56,38 @@ export async function autocompleteAddress(searchText: string): Promise<Autocompl
   }
 }
 
-export async function getDealsByRadius(x: number, y: number, radius: number = 100): Promise<Deal[]> {
+interface PolygonInfo {
+  polygon_id: string;
+  dealscount: string;
+  settlementNameHeb?: string;
+  streetNameHeb?: string;
+}
+
+async function getPolygonsByRadius(x: number, y: number, radius: number = 500): Promise<PolygonInfo[]> {
   try {
     const response = await fetch(
-      `${GOVMAP_BASE_URL}/nadlan/GetNadlanByRadius?x=${x}&y=${y}&radius=${radius}`,
+      `${GOVMAP_BASE_URL}/real-estate/deals/${x},${y}/${radius}`,
       { headers }
     );
 
     if (!response.ok) {
-      console.error('GetDealsByRadius error:', response.status);
-      throw new Error(`GetDealsByRadius failed: ${response.status}`);
+      console.error('GetPolygonsByRadius error:', response.status);
+      return [];
     }
 
-    const data = await response.json();
-    return data.NadlanItems || [];
+    return await response.json();
   } catch (error) {
-    console.error('GetDealsByRadius exception:', error);
-    throw error;
+    console.error('GetPolygonsByRadius exception:', error);
+    return [];
   }
 }
 
-export async function getStreetDeals(polygonId: string, yearsBack: number = 2): Promise<Deal[]> {
-  const endDate = new Date();
-  const startDate = new Date();
-  startDate.setFullYear(startDate.getFullYear() - yearsBack);
-
+async function getStreetDealsByPolygon(polygonId: string): Promise<Deal[]> {
   try {
-    const response = await fetch(`${GOVMAP_BASE_URL}/nadlan/GetNadlanByPolygon`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        PolygonId: polygonId,
-        FromDate: startDate.toISOString().split('T')[0],
-        ToDate: endDate.toISOString().split('T')[0],
-        PageNo: 1,
-        PageSize: 50,
-      }),
-    });
+    const response = await fetch(
+      `${GOVMAP_BASE_URL}/real-estate/street-deals/${polygonId}`,
+      { headers }
+    );
 
     if (!response.ok) {
       console.error('GetStreetDeals error:', response.status);
@@ -100,12 +95,13 @@ export async function getStreetDeals(polygonId: string, yearsBack: number = 2): 
     }
 
     const data = await response.json();
-    return data.NadlanItems || [];
+    return data.deals || [];
   } catch (error) {
     console.error('GetStreetDeals exception:', error);
     return [];
   }
 }
+
 
 export async function findDealsForAddress(address: string, yearsBack: number = 2) {
   // Step 1: Autocomplete to get coordinates
@@ -129,19 +125,24 @@ export async function findDealsForAddress(address: string, yearsBack: number = 2
 
   console.log('Using coordinates:', { x, y });
 
-  // Step 2: Get deals by radius (larger radius)
-  const radiusDeals = await getDealsByRadius(x, y, 500);
+  // Step 2: Get polygons by radius
+  const polygons = await getPolygonsByRadius(x, y, 500);
+  console.log('Found polygons:', polygons.length);
 
-  console.log('Found radius deals:', radiusDeals.length);
-
-  // Step 3: Get street deals if we have a polygon ID
-  let streetDeals: Deal[] = [];
-  if (radiusDeals.length > 0 && radiusDeals[0].POLYGON_ID) {
-    streetDeals = await getStreetDeals(radiusDeals[0].POLYGON_ID, yearsBack);
+  if (!polygons.length) {
+    return { address: location.text || address, deals: [], total_deals: 0, message: 'לא נמצאו עסקאות באזור' };
   }
 
-  // Combine and dedupe deals
-  const allDeals = [...radiusDeals, ...streetDeals];
+  // Step 3: Get deals from top polygons
+  const allDeals: Deal[] = [];
+  for (const polygon of polygons.slice(0, 5)) {
+    const deals = await getStreetDealsByPolygon(polygon.polygon_id);
+    allDeals.push(...deals);
+  }
+
+  console.log('Total deals found:', allDeals.length);
+
+  // Dedupe deals
   const uniqueDeals = allDeals.filter((deal, index, self) =>
     index === self.findIndex(d =>
       d.DEALAMOUNT === deal.DEALAMOUNT &&
@@ -162,8 +163,8 @@ export async function findDealsForAddress(address: string, yearsBack: number = 2
     debug: {
       autocomplete_count: results.length,
       coordinates: { x, y },
-      radius_deals: radiusDeals.length,
-      street_deals: streetDeals.length,
+      polygons_found: polygons.length,
+      total_deals: allDeals.length,
     },
     coordinates: { x, y },
     total_deals: uniqueDeals.length,
