@@ -1,5 +1,13 @@
 const GOVMAP_BASE_URL = 'https://www.govmap.gov.il/api';
-const USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36';
+
+const headers = {
+  'Content-Type': 'application/json',
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  'Accept': 'application/json, text/plain, */*',
+  'Accept-Language': 'he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7',
+  'Origin': 'https://www.govmap.gov.il',
+  'Referer': 'https://www.govmap.gov.il/',
+};
 
 interface AutocompleteResult {
   ResultType: string;
@@ -25,42 +33,47 @@ interface Deal {
 }
 
 export async function autocompleteAddress(searchText: string): Promise<AutocompleteResult[]> {
-  const response = await fetch(`${GOVMAP_BASE_URL}/search-service/autocomplete`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'User-Agent': USER_AGENT,
-    },
-    body: JSON.stringify({
-      Query: searchText,
-      Count: 5,
-    }),
-  });
+  try {
+    const response = await fetch(`${GOVMAP_BASE_URL}/search-service/autocomplete`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        Query: searchText,
+        Count: 5,
+      }),
+    });
 
-  if (!response.ok) {
-    throw new Error(`Autocomplete failed: ${response.status}`);
+    if (!response.ok) {
+      console.error('Autocomplete error:', response.status, await response.text());
+      throw new Error(`Autocomplete failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.Results || [];
+  } catch (error) {
+    console.error('Autocomplete exception:', error);
+    throw error;
   }
-
-  const data = await response.json();
-  return data.Results || [];
 }
 
 export async function getDealsByRadius(x: number, y: number, radius: number = 100): Promise<Deal[]> {
-  const response = await fetch(
-    `${GOVMAP_BASE_URL}/nadlan/GetNadlanByRadius?x=${x}&y=${y}&radius=${radius}`,
-    {
-      headers: {
-        'User-Agent': USER_AGENT,
-      },
+  try {
+    const response = await fetch(
+      `${GOVMAP_BASE_URL}/nadlan/GetNadlanByRadius?x=${x}&y=${y}&radius=${radius}`,
+      { headers }
+    );
+
+    if (!response.ok) {
+      console.error('GetDealsByRadius error:', response.status);
+      throw new Error(`GetDealsByRadius failed: ${response.status}`);
     }
-  );
 
-  if (!response.ok) {
-    throw new Error(`GetDealsByRadius failed: ${response.status}`);
+    const data = await response.json();
+    return data.NadlanItems || [];
+  } catch (error) {
+    console.error('GetDealsByRadius exception:', error);
+    throw error;
   }
-
-  const data = await response.json();
-  return data.NadlanItems || [];
 }
 
 export async function getStreetDeals(polygonId: string, yearsBack: number = 2): Promise<Deal[]> {
@@ -68,27 +81,30 @@ export async function getStreetDeals(polygonId: string, yearsBack: number = 2): 
   const startDate = new Date();
   startDate.setFullYear(startDate.getFullYear() - yearsBack);
 
-  const response = await fetch(`${GOVMAP_BASE_URL}/nadlan/GetNadlanByPolygon`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'User-Agent': USER_AGENT,
-    },
-    body: JSON.stringify({
-      PolygonId: polygonId,
-      FromDate: startDate.toISOString().split('T')[0],
-      ToDate: endDate.toISOString().split('T')[0],
-      PageNo: 1,
-      PageSize: 50,
-    }),
-  });
+  try {
+    const response = await fetch(`${GOVMAP_BASE_URL}/nadlan/GetNadlanByPolygon`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        PolygonId: polygonId,
+        FromDate: startDate.toISOString().split('T')[0],
+        ToDate: endDate.toISOString().split('T')[0],
+        PageNo: 1,
+        PageSize: 50,
+      }),
+    });
 
-  if (!response.ok) {
-    throw new Error(`GetStreetDeals failed: ${response.status}`);
+    if (!response.ok) {
+      console.error('GetStreetDeals error:', response.status);
+      return [];
+    }
+
+    const data = await response.json();
+    return data.NadlanItems || [];
+  } catch (error) {
+    console.error('GetStreetDeals exception:', error);
+    return [];
   }
-
-  const data = await response.json();
-  return data.NadlanItems || [];
 }
 
 export async function findDealsForAddress(address: string, yearsBack: number = 2) {
@@ -96,7 +112,7 @@ export async function findDealsForAddress(address: string, yearsBack: number = 2
   const results = await autocompleteAddress(address);
 
   if (!results.length) {
-    return { address, deals: [], error: 'כתובת לא נמצאה' };
+    return { address, deals: [], total_deals: 0, message: 'כתובת לא נמצאה' };
   }
 
   const location = results[0];
@@ -109,11 +125,7 @@ export async function findDealsForAddress(address: string, yearsBack: number = 2
   // Step 3: Get street deals if we have a polygon ID
   let streetDeals: Deal[] = [];
   if (radiusDeals.length > 0 && radiusDeals[0].POLYGON_ID) {
-    try {
-      streetDeals = await getStreetDeals(radiusDeals[0].POLYGON_ID, yearsBack);
-    } catch (e) {
-      console.error('Street deals error:', e);
-    }
+    streetDeals = await getStreetDeals(radiusDeals[0].POLYGON_ID, yearsBack);
   }
 
   // Combine and dedupe deals
