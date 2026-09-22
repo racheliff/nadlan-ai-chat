@@ -9,7 +9,7 @@ export async function POST(req: Request) {
   const { messages } = await req.json();
 
   const result = await streamText({
-    model: anthropic('claude-sonnet-4-5-20250929'),
+    model: anthropic('claude-haiku-4-5-20251001'),
     system: `אתה עוזר נדל"ן ישראלי מומחה. אתה עוזר למשתמשים למצוא מידע על עסקאות נדל"ן בישראל.
 
 כשמשתמש שואל על נכס או כתובת:
