@@ -111,6 +111,8 @@ export async function findDealsForAddress(address: string, yearsBack: number = 2
   // Step 1: Autocomplete to get coordinates
   const results = await autocompleteAddress(address);
 
+  console.log('Autocomplete results:', JSON.stringify(results.slice(0, 2)));
+
   if (!results.length) {
     return { address, deals: [], total_deals: 0, message: 'כתובת לא נמצאה' };
   }
@@ -119,8 +121,12 @@ export async function findDealsForAddress(address: string, yearsBack: number = 2
   const x = location.X;
   const y = location.Y;
 
-  // Step 2: Get deals by radius
-  const radiusDeals = await getDealsByRadius(x, y, 200);
+  console.log('Using coordinates:', { x, y });
+
+  // Step 2: Get deals by radius (larger radius)
+  const radiusDeals = await getDealsByRadius(x, y, 500);
+
+  console.log('Found radius deals:', radiusDeals.length);
 
   // Step 3: Get street deals if we have a polygon ID
   let streetDeals: Deal[] = [];
@@ -147,6 +153,12 @@ export async function findDealsForAddress(address: string, yearsBack: number = 2
 
   return {
     address: location.ResultLable || address,
+    debug: {
+      autocomplete_count: results.length,
+      coordinates: { x, y },
+      radius_deals: radiusDeals.length,
+      street_deals: streetDeals.length,
+    },
     coordinates: { x, y },
     total_deals: uniqueDeals.length,
     deals: uniqueDeals.slice(0, 15).map(deal => ({
