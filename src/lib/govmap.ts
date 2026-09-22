@@ -10,11 +10,11 @@ const headers = {
 };
 
 interface AutocompleteResult {
-  ResultType: string;
-  ResultLable: string;
-  X: number;
-  Y: number;
-  ObjectId?: string;
+  id: string;
+  text: string;
+  type: string;
+  shape: string; // "POINT(x y)"
+  originalText?: string;
 }
 
 interface Deal {
@@ -49,7 +49,7 @@ export async function autocompleteAddress(searchText: string): Promise<Autocompl
     }
 
     const data = await response.json();
-    return data.Results || [];
+    return data.results || [];
   } catch (error) {
     console.error('Autocomplete exception:', error);
     throw error;
@@ -118,8 +118,14 @@ export async function findDealsForAddress(address: string, yearsBack: number = 2
   }
 
   const location = results[0];
-  const x = location.X;
-  const y = location.Y;
+
+  // Parse coordinates from shape: "POINT(x y)"
+  const coordMatch = location.shape.match(/POINT\(([0-9.]+)\s+([0-9.]+)\)/);
+  if (!coordMatch) {
+    return { address, deals: [], total_deals: 0, message: 'לא נמצאו קואורדינטות' };
+  }
+  const x = parseFloat(coordMatch[1]);
+  const y = parseFloat(coordMatch[2]);
 
   console.log('Using coordinates:', { x, y });
 
@@ -152,7 +158,7 @@ export async function findDealsForAddress(address: string, yearsBack: number = 2
   });
 
   return {
-    address: location.ResultLable || address,
+    address: location.text || address,
     debug: {
       autocomplete_count: results.length,
       coordinates: { x, y },
