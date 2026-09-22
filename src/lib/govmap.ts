@@ -18,18 +18,17 @@ interface AutocompleteResult {
 }
 
 interface Deal {
-  FULLADRESS?: string;
-  DEALAMOUNT?: number;
-  DEALNATURE?: number;
-  ASSETROOMNUM?: number;
-  BUILDINGYEAR?: number;
-  ASSETAREA?: number;
-  FLOORNO?: number;
-  DEALDATE?: string;
-  NEWPROJECTNAME?: string;
-  TREND?: number;
-  POLYGON_ID?: string;
-  DISPLAYDATE?: string;
+  settlementNameHeb?: string;
+  streetNameHeb?: string;
+  houseNum?: string;
+  floorNo?: string;
+  assetArea?: number;
+  dealAmount?: number;
+  assetRoomNum?: number;
+  neighborhood?: string;
+  dealDate?: string;
+  propertyTypeDescription?: string;
+  dealNatureDescription?: string;
 }
 
 export async function autocompleteAddress(searchText: string): Promise<AutocompleteResult[]> {
@@ -95,7 +94,7 @@ async function getStreetDealsByPolygon(polygonId: string): Promise<Deal[]> {
     }
 
     const data = await response.json();
-    return data.deals || [];
+    return data.data || [];
   } catch (error) {
     console.error('GetStreetDeals exception:', error);
     return [];
@@ -145,16 +144,16 @@ export async function findDealsForAddress(address: string, yearsBack: number = 2
   // Dedupe deals
   const uniqueDeals = allDeals.filter((deal, index, self) =>
     index === self.findIndex(d =>
-      d.DEALAMOUNT === deal.DEALAMOUNT &&
-      d.DEALDATE === deal.DEALDATE &&
-      d.ASSETAREA === deal.ASSETAREA
+      d.dealAmount === deal.dealAmount &&
+      d.dealDate === deal.dealDate &&
+      d.assetArea === deal.assetArea
     )
   );
 
   // Sort by date (newest first)
   uniqueDeals.sort((a, b) => {
-    const dateA = a.DEALDATE || a.DISPLAYDATE || '';
-    const dateB = b.DEALDATE || b.DISPLAYDATE || '';
+    const dateA = a.dealDate || '';
+    const dateB = b.dealDate || '';
     return dateB.localeCompare(dateA);
   });
 
@@ -169,17 +168,17 @@ export async function findDealsForAddress(address: string, yearsBack: number = 2
     coordinates: { x, y },
     total_deals: uniqueDeals.length,
     deals: uniqueDeals.slice(0, 15).map(deal => ({
-      address: deal.FULLADRESS,
-      date: deal.DISPLAYDATE || deal.DEALDATE,
-      price: deal.DEALAMOUNT,
-      area_sqm: deal.ASSETAREA,
-      rooms: deal.ASSETROOMNUM,
-      floor: deal.FLOORNO,
-      building_year: deal.BUILDINGYEAR,
-      is_new: deal.DEALNATURE === 1,
-      project_name: deal.NEWPROJECTNAME,
-      price_per_sqm: deal.ASSETAREA && deal.DEALAMOUNT
-        ? Math.round(deal.DEALAMOUNT / deal.ASSETAREA)
+      address: [deal.streetNameHeb, deal.houseNum, deal.settlementNameHeb].filter(Boolean).join(' '),
+      neighborhood: deal.neighborhood,
+      date: deal.dealDate,
+      price: deal.dealAmount,
+      area_sqm: deal.assetArea,
+      rooms: deal.assetRoomNum,
+      floor: deal.floorNo,
+      property_type: deal.propertyTypeDescription,
+      deal_type: deal.dealNatureDescription,
+      price_per_sqm: deal.assetArea && deal.dealAmount
+        ? Math.round(deal.dealAmount / deal.assetArea)
         : null,
     })),
   };
