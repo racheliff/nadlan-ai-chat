@@ -38,8 +38,8 @@ export async function autocompleteAddress(searchText: string): Promise<Autocompl
       method: 'POST',
       headers,
       body: JSON.stringify({
-        Query: searchText,
-        Count: 5,
+        searchText: searchText,
+        count: 5,
       }),
     });
 
