@@ -8,18 +8,27 @@ export default function Chat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadedFile, setUploadedFile] = useState<{ name: string; content: string } | null>(null);
+  const [uploadStatus, setUploadStatus] = useState<'idle' | 'reading' | 'ready'>('idle');
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setUploadStatus('reading');
     const reader = new FileReader();
     reader.onload = (event) => {
       const content = event.target?.result as string;
       setUploadedFile({ name: file.name, content });
       setInput(`סכם את המסמך "${file.name}":\n\n${content.slice(0, 10000)}`);
+      setUploadStatus('ready');
     };
     reader.readAsText(file);
+  };
+
+  const handleFormSubmit = (e: React.FormEvent) => {
+    handleSubmit(e);
+    setUploadedFile(null);
+    setUploadStatus('idle');
   };
 
   useEffect(() => {
@@ -111,12 +120,19 @@ export default function Chat() {
       {/* Input */}
       <footer className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
         <div className="max-w-4xl mx-auto px-4 py-4">
-          {uploadedFile && (
-            <div className="mb-2 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-              <span>📄 {uploadedFile.name}</span>
+          {uploadStatus === 'reading' && (
+            <div className="mb-2 flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400">
+              <span className="animate-spin">⏳</span>
+              <span>קורא את המסמך...</span>
+            </div>
+          )}
+          {uploadedFile && uploadStatus === 'ready' && (
+            <div className="mb-2 flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
+              <span>✅ {uploadedFile.name} מוכן לשליחה</span>
               <button
                 onClick={() => {
                   setUploadedFile(null);
+                  setUploadStatus('idle');
                   setInput('');
                 }}
                 className="text-red-500 hover:text-red-700"
@@ -125,7 +141,13 @@ export default function Chat() {
               </button>
             </div>
           )}
-          <form onSubmit={handleSubmit} className="flex gap-2">
+          {isLoading && uploadedFile && (
+            <div className="mb-2 flex items-center gap-2 text-sm text-orange-600 dark:text-orange-400">
+              <span className="animate-pulse">🔄</span>
+              <span>מעבד את המסמך...</span>
+            </div>
+          )}
+          <form onSubmit={handleFormSubmit} className="flex gap-2">
             <input
               type="file"
               ref={fileInputRef}
