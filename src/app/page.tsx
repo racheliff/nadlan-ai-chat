@@ -1,11 +1,26 @@
 'use client';
 
 import { useChat } from 'ai/react';
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useState } from 'react';
 
 export default function Chat() {
-  const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat();
+  const { messages, input, handleInputChange, handleSubmit, setInput, isLoading } = useChat();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadedFile, setUploadedFile] = useState<{ name: string; content: string } | null>(null);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result as string;
+      setUploadedFile({ name: file.name, content });
+      setInput(`סכם את המסמך "${file.name}":\n\n${content.slice(0, 10000)}`);
+    };
+    reader.readAsText(file);
+  };
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -96,7 +111,37 @@ export default function Chat() {
       {/* Input */}
       <footer className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
         <div className="max-w-4xl mx-auto px-4 py-4">
+          {uploadedFile && (
+            <div className="mb-2 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+              <span>📄 {uploadedFile.name}</span>
+              <button
+                onClick={() => {
+                  setUploadedFile(null);
+                  setInput('');
+                }}
+                className="text-red-500 hover:text-red-700"
+              >
+                ✕
+              </button>
+            </div>
+          )}
           <form onSubmit={handleSubmit} className="flex gap-2">
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileUpload}
+              accept=".txt,.md,.csv,.json"
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isLoading}
+              className="bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 disabled:opacity-50 text-gray-600 dark:text-gray-300 rounded-full px-4 py-3 transition-colors"
+              title="העלה מסמך לסיכום"
+            >
+              📎
+            </button>
             <input
               value={input}
               onChange={handleInputChange}
